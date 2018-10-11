@@ -8,12 +8,10 @@ PAMDIR ?= $(PAMDIR_$(ARCH))
 
 INSTALL		:= install
 INSTALL_DIR	:= $(INSTALL) -m 755 -d
-INSTALL_PROGRAM	:= $(INSTALL) -m 755
 INSTALL_LIBRARY	:= $(INSTALL) -m 644
 RM		:= rm -rf
 
 CC ?= gcc
-CXX ?= g++
 CFLAGS ?= -O2
 
 CFLAGS += -Wall -Wextra
