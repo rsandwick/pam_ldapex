@@ -1,4 +1,4 @@
-# pam_ldapdb.so Makefile
+# pam_ldapex.so Makefile
 #
 ARCH := $(shell getconf LONG_BIT)
 DESTDIR ?=
@@ -12,23 +12,24 @@ INSTALL_PROGRAM	:= $(INSTALL) -m 755
 INSTALL_LIBRARY	:= $(INSTALL) -m 644
 RM		:= rm -rf
 
+GCC ?= gcc
 CXX ?= g++
 CFLAGS ?= -O2
 
-CFLAGS += -std=c++11 -Wall -Wextra
+CFLAGS += -Wall -Wextra
 LDFLAGS	+= -Wl,-z,relro
 
 all: library
 
-library: pam_ldapdb.o
-	$(CXX) $(CFLAGS) -shared -o pam_ldapdb.so pam_ldapdb.o -lldap $(LDFLAGS)
+library: pam_ldapex.o
+	$(GCC) $(CFLAGS) -shared -o pam_ldapex.so pam_ldapex.o -lldap $(LDFLAGS)
 
-pam_ldapdb.o: pam_ldapdb.cpp
-	$(CXX) $(CFLAGS) -c -fPIC -o pam_ldapdb.o pam_ldapdb.cpp
+pam_ldapex.o: pam_ldapex.c
+	$(GCC) $(CFLAGS) -c -fPIC -o pam_ldapex.o pam_ldapex.c
 
 install:
 	$(INSTALL_DIR) $(DESTDIR)$(PAMDIR)
-	$(INSTALL_LIBRARY) pam_ldapdb.so $(DESTDIR)$(PAMDIR)
+	$(INSTALL_LIBRARY) pam_ldapex.so $(DESTDIR)$(PAMDIR)
 
 clean:
-	$(RM) *.o pam_ldapdb.so
+	$(RM) *.o pam_ldapex.so
