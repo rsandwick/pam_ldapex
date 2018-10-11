@@ -1,5 +1,5 @@
-#include <syslog.h>
-#include <pwd.h>
+#include <syslog.h> /* #define LOG_* */
+#include <pwd.h>    /* getpwnam(), struct passwd */
 
 #define PAM_SM_AUTH
 #include <security/pam_modules.h>
@@ -9,18 +9,24 @@
 #define LDAP_DEPRECATED 1
 #include <ldap.h>
 
+#if defined(__GNUC__)
+#define UNUSED(x) x##_UNUSED __attribute__((unused))
+#else
+#define UNUSED(x) x##_UNUSED
+#endif
+
+
 struct options_t {
-    const char *binddn;
-    const char *uri;
+    const char* binddn;
+    const char* uri;
 };
 typedef struct options_t options_t;
 
-static int
-_pam_parse_args(
-        pam_handle_t *pamh,
-        int argc, const char **argv,
-        options_t *opts
-        )
+
+static int _pam_parse_args(pam_handle_t* pamh,
+                           int argc,
+                           const char** argv,
+                           options_t* opts)
 {
     opts->binddn = "";
     opts->uri = "";
@@ -39,26 +45,27 @@ _pam_parse_args(
 }
 
 
-static int
-_pam_format(pam_handle_t *pamh, const char *format, char **dest) {
-
+static int _pam_format(pam_handle_t* pamh,
+                       const char* format,
+                       char** dest)
+{
     char buffer[PAM_MAX_MSG_SIZE];
-    char *output = buffer;
+    char* output = buffer;
 
-    const char *head = strchr(format, '%');
-    const char *tail = format;
+    const char* head = strchr(format, '%');
+    const char* tail = format;
 
     size_t available = PAM_MAX_MSG_SIZE;
     size_t length;
 
-    const char *str = NULL;
+    const char* str = NULL;
 
     while (head) {
         length = (head - tail);
         if (available < length) {
             return PAM_AUTH_ERR;
         } else {
-            //TODO: error check
+            /***TODO: error check */
             strncpy(output, tail, length);
             output += length;
             available -= length;
@@ -93,7 +100,7 @@ _pam_format(pam_handle_t *pamh, const char *format, char **dest) {
             *output = '\0';
         }
         if (!(head = strchr(head, '%'))) {
-            // end of string
+            /* end of string */
             length = strlen(tail);
             strncpy(output, tail, length);
             output += length;
@@ -103,7 +110,7 @@ _pam_format(pam_handle_t *pamh, const char *format, char **dest) {
     }
 
     length = strlen(buffer) + 1;
-    *dest = (char *)malloc(length);
+    *dest = (char*)malloc(length);
     memset(*dest, 0, length);
 
     if (!dest) {
@@ -111,11 +118,12 @@ _pam_format(pam_handle_t *pamh, const char *format, char **dest) {
         return PAM_BUF_ERR;
     }
     strncpy(*dest, buffer, length);
+
     return PAM_SUCCESS;
 }
 
 
-static int ldap_to_pam_rc(int ldap_rc)
+static inline int _ldap_to_pam_rc(int ldap_rc)
 {
     switch (ldap_rc) {
     case LDAP_SUCCESS:
@@ -138,31 +146,31 @@ static int ldap_to_pam_rc(int ldap_rc)
     return PAM_AUTH_ERR;
 }
 
-static int verify(const char* host,
-                  const char* binddn,
-                  const char* pw)
+static inline int _ldap_verify(const char* host,
+                               const char* binddn,
+                               const char* pw)
 {
     LDAP* ld;
     int ldap_rc, pam_rc;
 
     ldap_rc = ldap_initialize(&ld, host);
-    pam_rc = ldap_to_pam_rc(ldap_rc);
+    pam_rc = _ldap_to_pam_rc(ldap_rc);
     if (pam_rc != PAM_SUCCESS)
         return pam_rc;
 
     ldap_rc = ldap_simple_bind_s(ld, binddn, pw);
-    return ldap_to_pam_rc(ldap_rc);
+    return _ldap_to_pam_rc(ldap_rc);
 }
 
 
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t* pamh,
-                                   int /* flags */,
+                                   int UNUSED(flags),
                                    int argc,
                                    const char** argv)
 {
     const char* user;
     const char* pass;
-    struct passwd *pwd;
+    struct passwd* pwd;
     int ret;
     options_t opts;
 
@@ -170,12 +178,6 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t* pamh,
     if (ret != PAM_SUCCESS) {
         return ret;
     }
-
-    ret = _pam_format(pamh, opts.binddn, (char **)&opts.binddn);
-    if (ret != PAM_SUCCESS) {
-        return ret;
-    }
-    pam_syslog(pamh, LOG_NOTICE, "using binddn=%s", opts.binddn);
 
     ret = pam_get_user(pamh, &user, NULL);
     if (ret != PAM_SUCCESS) {
@@ -187,33 +189,36 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t* pamh,
         return ret;
     }
 
-    // ensure uri and binddn PAM parameters were specified
+    /* ensure uri and binddn PAM parameters were specified */
     if (strlen(opts.uri) == 0 || strlen(opts.binddn) == 0) {
         pam_syslog(pamh, LOG_NOTICE, "unable to find URI and/or BINDDN");
         return PAM_AUTH_ERR;
     }
 
-    // get passwd entry for desired user. This is required for UID checking.
+    /* get passwd entry for desired user. This is required for UID checking. */
     pwd = getpwnam(user);
     if (!pwd) {
         pam_syslog(pamh, LOG_NOTICE, "unable to get uid for user %s", user);
         return PAM_AUTH_ERR;
     }
 
-    // ldap_simple_bind_s accepts empty passwords for all users, therefore we
-    // catch and deny them here...
+    /* ldap_simple_bind_s accepts empty passwords for all users, therefore we
+       catch and deny them here... */
     if (strlen(pass) == 0) {
         pam_syslog(pamh, LOG_NOTICE, "ldap authentication failure: "
                    "empty password for user %s", user);
         return PAM_AUTH_ERR;
     }
 
-    // parse & prepare binddn
-    //std::string binddn = arguments["binddn"];
-    //replace_all(binddn, "%s", user);
+    /* parse & prepare binddn */
+    ret = _pam_format(pamh, opts.binddn, (char**)&opts.binddn);
+    if (ret != PAM_SUCCESS) {
+        return ret;
+    }
+    pam_syslog(pamh, LOG_NOTICE, "using binddn=%s", opts.binddn);
 
-    // check against ldap database
-    ret = verify(opts.uri, opts.binddn, pass);
+    /* check against ldap database */
+    ret = _ldap_verify(opts.uri, opts.binddn, pass);
     if (ret != PAM_SUCCESS) {
         pam_syslog(pamh, LOG_NOTICE, "ldap authentication failure: "
                    "user=<%s> uri=<%s> binddn=<%s>",
@@ -223,10 +228,10 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t* pamh,
 }
 
 
-PAM_EXTERN int pam_sm_setcred(pam_handle_t* /* pamh */,
-                              int /* flags */,
-                              int /* argc */,
-                              const char** /* argv */)
+PAM_EXTERN int pam_sm_setcred(pam_handle_t* UNUSED(pamh),
+                              int UNUSED(flags),
+                              int UNUSED(argc),
+                              const char** UNUSED(argv))
 {
     return PAM_SUCCESS;
 }
