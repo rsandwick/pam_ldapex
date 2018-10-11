@@ -1,13 +1,11 @@
-#include <syslog.h> /* #define LOG_* */
+#include <ldap.h>   /* ldap_*, LDAP_* */
 #include <pwd.h>    /* getpwnam(), struct passwd */
+#include <syslog.h> /* LOG_* */
 
 #define PAM_SM_AUTH
 #include <security/pam_modules.h>
 #include <security/_pam_macros.h>
 #include <security/pam_ext.h>
-
-#define LDAP_DEPRECATED 1
-#include <ldap.h>
 
 #if defined(__GNUC__)
 #define UNUSED(x) x##_UNUSED __attribute__((unused))
@@ -151,6 +149,7 @@ static inline int _ldap_verify(const char* host,
                                const char* pw)
 {
     LDAP* ld;
+    struct berval cred = { strlen(pw), (char*)pw };
     int ldap_rc, pam_rc;
 
     ldap_rc = ldap_initialize(&ld, host);
@@ -158,7 +157,8 @@ static inline int _ldap_verify(const char* host,
     if (pam_rc != PAM_SUCCESS)
         return pam_rc;
 
-    ldap_rc = ldap_simple_bind_s(ld, binddn, pw);
+    ldap_rc = ldap_sasl_bind_s(ld, binddn, LDAP_SASL_SIMPLE,
+                               &cred, NULL, NULL, NULL);
     return _ldap_to_pam_rc(ldap_rc);
 }
 
