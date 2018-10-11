@@ -12,7 +12,7 @@ INSTALL_PROGRAM	:= $(INSTALL) -m 755
 INSTALL_LIBRARY	:= $(INSTALL) -m 644
 RM		:= rm -rf
 
-GCC ?= gcc
+CC ?= gcc
 CXX ?= g++
 CFLAGS ?= -O2
 
@@ -22,10 +22,10 @@ LDFLAGS	+= -Wl,-z,relro
 all: library
 
 library: pam_ldapex.o
-	$(GCC) $(CFLAGS) -shared -o pam_ldapex.so pam_ldapex.o -lldap $(LDFLAGS)
+	$(CC) $(CFLAGS) -shared -o pam_ldapex.so pam_ldapex.o -lldap $(LDFLAGS)
 
-pam_ldapex.o: pam_ldapex.c
-	$(GCC) $(CFLAGS) -c -fPIC -o pam_ldapex.o pam_ldapex.c
+%.o: %.c
+	$(CC) $(CFLAGS) -c -fPIC -o $@ $<
 
 install:
 	$(INSTALL_DIR) $(DESTDIR)$(PAMDIR)
